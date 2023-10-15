@@ -1,0 +1,1 @@
+# A JS wrapper for ExifTool by Phil Harvey
