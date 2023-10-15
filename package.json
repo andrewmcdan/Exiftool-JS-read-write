@@ -1,0 +1,28 @@
+{
+  "name": "exiftool-js-read-write",
+  "version": "0.0.1",
+  "description": "A wrapper for ExifTool by Phil Harvey that provides read and write capability.",
+  "main": "index.js",
+  "scripts": {
+    "test": "echo \"Error: no test specified\" && exit 1"
+  },
+  "repository": {
+    "type": "git",
+    "url": "git+https://github.com/andrewmcdan/Exiftool-JS-read-write.git"
+  },
+  "keywords": [
+    "exif"
+  ],
+  "author": "",
+  "license": "GPL-3.0-or-later",
+  "bugs": {
+    "url": "https://github.com/andrewmcdan/Exiftool-JS-read-write/issues"
+  },
+  "homepage": "https://github.com/andrewmcdan/Exiftool-JS-read-write#readme",
+  "dependencies": {
+    "adm-zip": "^0.5.10",
+    "fs": "^0.0.1-security",
+    "node-fetch": "^2.6.1",
+    "large-download": "^1.0.0"
+  }
+}
