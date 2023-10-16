@@ -3,10 +3,7 @@ import AdmZip from 'adm-zip';
 import fetch from 'node-fetch';
 import { exec } from 'child_process';
 import LargeDownload from 'large-download';
-import { url } from 'inspector';
-import e from 'express';
-import { error } from 'console';
-import { Errors } from 'discordie';
+
 
 const ERRORS = {
     FILE_NOT_FOUND: 'File not found',
