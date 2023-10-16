@@ -1,3 +1,12 @@
+// TODO:
+// 1. Add support for Mac
+// 2. Find a JSON of all the tags and their descriptions or scrape it from the website
+//    - https://exiftool.org/TagNames/index.html
+//    - https://exiftool.org/TagNames/EXIF.html
+// 3. Add support for custom config file
+// 4. Add ability to generate a custom config file
+
+
 import fs from 'fs';
 import AdmZip from 'adm-zip';
 import fetch from 'node-fetch';
