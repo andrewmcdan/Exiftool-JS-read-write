@@ -47,6 +47,10 @@ class EXIF {
         });
     }
 
+    setLoggerCallback = (callback) => {
+        this.loggerCallback = callback;
+    }
+
     getExiftoolExecutable = () => {
         if (this.exiftoolInstalled_1) return 'exiftool/exiftool.exe';
         if (this.exiftoolInstalled_2) return 'exiftool/exiftool';
@@ -73,7 +77,6 @@ class EXIF {
             resolve(this.exiftoolInstalled);
         });
     }
-
 
     downloadExifTool = () => {
         return new Promise(async (resolve, reject) => {
