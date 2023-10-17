@@ -23,7 +23,7 @@
     "adm-zip": "^0.5.10",
     "cheerio": "^1.0.0-rc.12",
     "fs": "^0.0.1-security",
-    "large-download": "file:../large-download",
+    "large-download": "git+https://github.com/andrewmcdan/large-download.git#master"
     "node-fetch": "^2.6.1"
   }
 }
