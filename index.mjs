@@ -6,6 +6,7 @@
 // 3. Add support for custom config file
 // 4. Add ability to generate a custom config file
 
+//test
 
 import fs from 'fs';
 import AdmZip from 'adm-zip';
