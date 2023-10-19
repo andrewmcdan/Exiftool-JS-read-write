@@ -1,1 +1,2 @@
 # A JS wrapper for ExifTool by Phil Harvey
+There are plenty of other wrappers for ExifTool, but many of them lack the ability to write data. This module was made with writing EXIF data as the primary goal.
