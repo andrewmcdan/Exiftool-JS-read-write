@@ -50,12 +50,12 @@ class EXIF {
                     if (!success) return null;
                     this.checkForExifTool().then((installed) => {
                         if (installed) return true;
-                    }).catch((err) => {this.logger("EXIF: Error checking for exiftool: ", err);});
+                    }).catch((err) => { this.logger("EXIF: Error checking for exiftool: ", err); });
                 }).catch((err) => {
                     this.logger("EXIF: Error downloading exiftool: ", err);
                 });
             }
-        }).catch((err) => {this.logger("EXIF: Error checking for exiftool: ", err);});
+        }).catch((err) => { this.logger("EXIF: Error checking for exiftool: ", err); });
         if (loadTagData_en) {
             this.loadTagDataJson();
         }
@@ -224,9 +224,7 @@ class EXIF {
                 // data is a string
                 dataString = data;
             }
-
             // console.log("dataString: ", dataString);
-
             let tagsObj = {};
             // parse the dataString to get the tags and values
             let dataStringSplit = dataString.split(" ");
@@ -240,7 +238,6 @@ class EXIF {
                 }
             });
             // console.log("tagsObj: ", tagsObj);
-
             if ((this.tagDataJsonLoaded == false) && verifyTagBool == true) this.loadTagDataJson();
             if ((this.tagDataJsonLoaded == false) && verifyTagBool == true) reject("tagDataJSON not loaded");
             else if (verifyTagBool) {
@@ -253,11 +250,10 @@ class EXIF {
                     });
                 }
             }
-
             this.logger("dataString: ", dataString);
             // attempt to write the data to the file using exiftool
             if (overwriteOriginal) dataString += "-overwrite_original ";
-            await this.runExifTool(filePath, dataString).then((result) => {
+            this.runExifTool(filePath, dataString).then((result) => {
                 this.logger("setExifData: result: ", result);
                 // interpret result
                 // if successful, resolve(true)
@@ -284,14 +280,14 @@ class EXIF {
                         tagsObj[tag] = false;
                     });
                 }
+                // if all tags fail, reject("failed to write exif data")
+                let allTagsFailed = true;
+                for (let tag in tagsObj) {
+                    if (tagsObj[tag] === true) allTagsFailed = false;
+                }
+                if (allTagsFailed) reject(ERRORS.FAILED_WRITE_EXIF);
+                resolve(tagsObj);
             });
-            // if all tags fail, reject("failed to write exif data")
-            let allTagsFailed = true;
-            for (let tag in tagsObj) {
-                if (tagsObj[tag] === true) allTagsFailed = false;
-            }
-            if (allTagsFailed) reject(ERRORS.FAILED_WRITE_EXIF);
-            resolve(tagsObj);
         });
     }
 
@@ -428,7 +424,7 @@ const downloadAndUnzip = (url, zipPath, extractPath) => {
 
         try {
             // if the url is null, that means the zip file already exists. Just extract it.
-            if(url === null){
+            if (url === null) {
                 const zip = new AdmZip(zipPath);
                 zip.extractAllTo(extractPath, true);
                 resolve(true);
