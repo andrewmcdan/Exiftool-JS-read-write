@@ -14,8 +14,6 @@ import fetch from 'node-fetch';
 import { exec } from 'child_process';
 import LargeDownload from 'large-download';
 import cheerio, { load } from 'cheerio';
-import { Console } from 'console';
-
 
 const ERRORS = {
     FILE_NOT_FOUND: 'File not found',
@@ -29,7 +27,7 @@ const ERRORS = {
 };
 
 class EXIF {
-    constructor(loggerCB, loadTagData_en = true) {
+    constructor(loggerCB, loadTagData_en = false) {
         if (loggerCB !== null && loggerCB !== undefined) this.loggerCallback = loggerCB;
         else this.loggerCallback = null;
 
@@ -52,12 +50,12 @@ class EXIF {
                     if (!success) return null;
                     this.checkForExifTool().then((installed) => {
                         if (installed) return true;
-                    });
+                    }).catch((err) => {this.logger("EXIF: Error checking for exiftool: ", err);});
                 }).catch((err) => {
                     this.logger("EXIF: Error downloading exiftool: ", err);
                 });
             }
-        });
+        }).catch((err) => {this.logger("EXIF: Error checking for exiftool: ", err);});
         if (loadTagData_en) {
             this.loadTagDataJson();
         }
@@ -65,51 +63,42 @@ class EXIF {
 
     loadTagDataJson = async () => {
         let waiter = [];
-        waiter.push(checkForTagData().then(async (exists) => {
-            if (!(exists == true)) {
-                waiter.push(scrapeTags().then(async (tags) => {
-                    waiter.push(saveTagData(tags).then(async (success) => {
-                        if (!success) {
-                            this.tagDataJsonLoaded = false;
-                            // return false;
-                        }
-                        waiter.push(loadTagData().then((tagData) => {
-                            this.tagData = tagData;
-                            // console.log(this.tagData);
-                            this.tagDataJsonLoaded = true;
-                            // return true;
-                        }).catch((err) => {
-                            console.log("error 2: ", err);
-                            this.tagDataJsonLoaded = false;
-                            // return false;
-                        }));
-                    }).catch((err) => {
-                        console.log("error 1: ", err);
+        if (checkForTagData() == false) {
+            waiter.push(scrapeTags().then(async (tags) => {
+                let success = saveTagData(tags);
+                if (success !== true) {
+                    this.tagDataJsonLoaded = false;
+                } else {
+                    let tagData = loadTagData();
+                    if (typeof tagData === "object") {
+                        this.tagData = tagData;
+                        // console.log(this.tagData);
+                        this.tagDataJsonLoaded = true;
+                        // return true;
+                    } else {
+                        console.log("error 2: ", tagData);
                         this.tagDataJsonLoaded = false;
                         // return false;
-                    }));
-                }).catch((err) => {
-                    // console.log(err);
-                    this.tagDataJsonLoaded = false;
-                    // return false;
-                }));
+                    }
+                }
+            }).catch((err) => {
+                console.log("error 0: ", err);
+                this.tagDataJsonLoaded = false;
+                // return false;
+            }));
+        } else {
+            let tagData = loadTagData();
+            if (typeof tagData === "object") {
+                this.tagData = tagData;
+                // console.log(this.tagData);
+                this.tagDataJsonLoaded = true;
+                // return true;
             } else {
-                waiter.push(loadTagData().then((tagData) => {
-                    this.tagData = tagData;
-                    // console.log(this.tagData);
-                    this.tagDataJsonLoaded = true;
-                    // return true;
-                }).catch((err) => {
-                    console.log("error 4:", err);
-                    this.tagDataJsonLoaded = false;
-                    // return false;
-                }));
+                console.log("error 2: ", tagData);
+                this.tagDataJsonLoaded = false;
+                // return false;
             }
-        }).catch((err) => {
-            console.log("error 3:", err);
-            this.tagDataJsonLoaded = false;
-            // return false;
-        }));
+        }
         await Promise.all(waiter);
         return this.tagDataJsonLoaded;
     }
@@ -151,34 +140,34 @@ class EXIF {
             // get platform
             const platform = process.platform;
             let dl_url = '';
-            if (platform === 'win32') {
-                dl_url = 'https://exiftool.org/exiftool-12.67.zip';
-            } else if (platform === 'darwin') {
-                dl_url = 'https://exiftool.org/ExifTool-12.67.dmg';
-            } else if (platform === 'linux') {
-                this.logger("Linux is not supported yet");
-                reject("Linux is not supported yet");
-            } else {
-                this.logger("Platform not supported");
-                reject("Platform not supported");
-            }
-
             // check to see if zip file exists
             try {
-                this.downloadAndUnzip(dl_url, './exiftool/exiftool.zip', './exiftool').then((success) => {
-                    if (!success) {
-                        this.logger("Error downloading exiftool");
-                        reject("Error downloading exiftool");
-                    }
-                    resolve(true);
-                }).catch((err) => {
-                    this.logger("Error downloading exiftool: ", err);
-                    reject("Error downloading exiftool: ", err);
-                });
+                if (fs.existsSync('./exiftool/exiftool.zip')) dl_url = null;
             } catch (err) {
+                if (platform === 'win32') {
+                    dl_url = 'https://exiftool.org/exiftool-12.67.zip';
+                } else if (platform === 'darwin') {
+                    dl_url = 'https://exiftool.org/ExifTool-12.67.dmg';
+                } else if (platform === 'linux') {
+                    this.logger("Linux is not supported yet");
+                    reject("Linux is not supported yet");
+                } else {
+                    this.logger("Platform not supported");
+                    reject("Platform not supported");
+                }
+            }
+
+            downloadAndUnzip(dl_url, './exiftool/exiftool.zip', './exiftool').then((success) => {
+                if (!success) {
+                    this.logger("Error downloading exiftool");
+                    reject("Error downloading exiftool");
+                }
+                resolve(true);
+            }).catch((err) => {
                 this.logger("Error downloading exiftool: ", err);
                 reject("Error downloading exiftool: ", err);
-            }
+            });
+
         });
     }
 
@@ -194,7 +183,7 @@ class EXIF {
 
     setExifData = (filePath, overwriteOriginal, verifyTagBool, ...data) => {
         return new Promise(async (resolve, reject) => {
-            console.log(data);
+            // console.log(data);
             // parse data to determine if it is a string or an object or an array
             // then build it into a string with the correct format
             let dataString = "";
@@ -236,7 +225,7 @@ class EXIF {
                 dataString = data;
             }
 
-            console.log("dataString: ", dataString);
+            // console.log("dataString: ", dataString);
 
             let tagsObj = {};
             // parse the dataString to get the tags and values
@@ -250,15 +239,15 @@ class EXIF {
                     tagsObj[tag] = value;
                 }
             });
-            console.log("tagsObj: ", tagsObj);
+            // console.log("tagsObj: ", tagsObj);
 
             if ((this.tagDataJsonLoaded == false) && verifyTagBool == true) this.loadTagDataJson();
             if ((this.tagDataJsonLoaded == false) && verifyTagBool == true) reject("tagDataJSON not loaded");
             else if (verifyTagBool) {
                 let fileType = filePath.substring(filePath.lastIndexOf('.') + 1);
-                console.log("fileType: ", fileType);
+                // console.log("fileType: ", fileType);
                 for (let key in tagsObj) {
-                    console.log("key: ", key);
+                    // console.log("key: ", key);
                     await verifyTag({ name: key, fileType: fileType }, this.tagData).catch((err) => {
                         reject("Error verifying tag");
                     });
@@ -268,13 +257,13 @@ class EXIF {
             this.logger("dataString: ", dataString);
             // attempt to write the data to the file using exiftool
             if (overwriteOriginal) dataString += "-overwrite_original ";
-            this.runExifTool(filePath, dataString).then((result) => {
+            await this.runExifTool(filePath, dataString).then((result) => {
                 this.logger("setExifData: result: ", result);
                 // interpret result
-                if (result.success === false) reject(result.error);
                 // if successful, resolve(true)
-                resolve(true);
-            }).catch((err) => {
+                if (result.success === true) resolve(true);
+                // if unsuccessful, runExifTool() should have rejected with an error and the code below in the catch section should run
+            }).catch(async (err) => {
                 // if unsuccessful, attempt to write each tag individually
                 this.logger("setExifData: error: ", err);
                 if (err === "exiftool not installed") reject(ERRORS.EXIFTOOL_NOT_INSTALLED);
@@ -287,7 +276,7 @@ class EXIF {
                     this.logger("singleTagString: ", singleTagString);
                     // keeping track of which ones fail and resolve(obj) where obj is the list of failed tags
                     if (overwriteOriginal) singleTagString += "-overwrite_original ";
-                    this.runExifTool(filePath, singleTagString).then((result) => {
+                    await this.runExifTool(filePath, singleTagString).then((result) => {
                         this.logger("setExifData: result: ", result);
                         // interpret result
                         tagsObj[tag] = result.success;
@@ -308,6 +297,7 @@ class EXIF {
 
     runExifTool = (filePath, args) => {
         return new Promise(async (resolve, reject) => {
+            this.logger("runExifTool: args: ", args, "filePath: ", filePath);
             if (this.exiftoolInstalled === false) reject(ERRORS.EXIFTOOL_NOT_INSTALLED);
             // attempt to run exiftool with the provided arguments
             // if successful, resolve(object with results from tool)
@@ -337,22 +327,12 @@ class EXIF {
                     // stderrString += error;
                     validData = true;
                 });
-                await waitSeconds(1); // give it a second to start up
-                while (runnerDataStreaming > runnerDataStreamingMax) {
-                    // runnerDataStreaming will be incremented in the stdout.on('data') event
-                    // so as long as it is more than runnerDataStreamingMax, we will wait
-                    // once it is equal to runnerDataStreamingMax, that means there hasn't 
-                    // been any new data for 1 second, so we can assume the process is done
-                    // and continue to send the "enter" key to the process to close it
-                    await waitSeconds(1);
-                    runnerDataStreamingMax++;
-                }
-                exiftoolRunner.stdin.write('\r\n'); // write the "enter" key to the process
-
+                // this will run when the process exits. The process will not exit until the "enter" key is sent to it
                 exiftoolRunner.on('exit', async (code) => {
                     while (!validData) { await waitSeconds(0.05); } // wait for the data to be valid (this is a hack
                     this.logger(`runExifTool: Child exited with code ${code}`);
                     // parse the output to determine if it was successful or not
+                    stdoutString = stdoutString.trim();
                     let returnObject = { success: false, stdout: stdoutString, stderr: stderrString, exitCode: code };
                     if (code !== 0) reject(returnObject);
                     try {
@@ -401,16 +381,31 @@ class EXIF {
                     // reset the runnerDataStreamingMax to 1 second from now
                     if (runnerDataStreamingMax > runnerDataStreaming + 1) runnerDataStreamingMax = runnerDataStreaming + 1;
                 });
+                // give the process a second to start up
+                await waitSeconds(1); // give it a second to start up
+                // wait for the process to finish
+                while (runnerDataStreaming > runnerDataStreamingMax) {
+                    // runnerDataStreaming will be incremented in the stdout.on('data') event
+                    // so as long as it is more than runnerDataStreamingMax, we will wait
+                    // once it is equal to runnerDataStreamingMax, that means there hasn't 
+                    // been any new data for 1 second, so we can assume the process is done
+                    // and continue to send the "enter" key to the process to close it
+                    await waitSeconds(1);
+                    runnerDataStreamingMax++;
+                }
+                exiftoolRunner.stdin.write('\r\n'); // write the "enter" key to the process
             } catch (err) {
                 this.logger("runExifTool: Error: ", err);
                 reject(err);
             }
         });
     }
+}
 
-    downloadAndUnzip = (url, zipPath, extractPath) => {
-        return new Promise(async (resolve, reject) => {
-            let waitingForFilename = true;
+const downloadAndUnzip = (url, zipPath, extractPath) => {
+    return new Promise(async (resolve, reject) => {
+        /*let waitingForFilename = true;
+        if (url !== null) {
             fetch(url).then((response) => {
                 const contentDisposition = response.headers.get("content-disposition");
                 // console.log("contentDisposition: ", contentDisposition);
@@ -428,47 +423,53 @@ class EXIF {
             }).catch((error) => {
                 console.error("Error:", error);
             }).finally(() => { waitingForFilename = false; });
-
             while (waitingForFilename) { await waitSeconds(1); }
+        }*/
 
-            try {
-                let downloading = true;
-
-                const download = new LargeDownload({
-                    link: url,
-                    destination: zipPath,
-                    timeout: 300000,
-                    retries: 3,
-                    onRetry: (error) => {
-                        console.log("Download error. Retrying: ", { error }, { url }, { zipPath }, { extractPath });
-                    },
-                    minSizeToShowProgress: Infinity
-                });
-
-                download.load().then(() => {
-                    downloading = false;
-                    download.onRetry = null;
-                }).catch(() => {
-                    downloading = false;
-                    download.onRetry = null;
-                    reject(false);
-                });
-
-                while (downloading) {
-                    await waitSeconds(0.5);
-                    if (this.downloadProgressCallback !== null && this.downloadProgressCallback != undefined) this.downloadProgressCallback();
-                }
-
+        try {
+            // if the url is null, that means the zip file already exists. Just extract it.
+            if(url === null){
                 const zip = new AdmZip(zipPath);
                 zip.extractAllTo(extractPath, true);
                 resolve(true);
-            } catch (error) {
-                console.error("Error: ", { error });
-                reject(false);
             }
-        });
-    };
-}
+
+            let downloading = true;
+
+            const download = new LargeDownload({
+                link: url,
+                destination: zipPath,
+                timeout: 300000,
+                retries: 3,
+                onRetry: (error) => {
+                    console.log("Download error. Retrying: ", { error }, { url }, { zipPath }, { extractPath });
+                },
+                minSizeToShowProgress: Infinity
+            });
+
+            download.load().then(() => {
+                downloading = false;
+                download.onRetry = null;
+            }).catch(() => {
+                downloading = false;
+                download.onRetry = null;
+                reject(false);
+            });
+
+            while (downloading) {
+                await waitSeconds(0.5);
+                if (this.downloadProgressCallback !== null && this.downloadProgressCallback != undefined) this.downloadProgressCallback();
+            }
+
+            const zip = new AdmZip(zipPath);
+            zip.extractAllTo(extractPath, true);
+            resolve(true);
+        } catch (error) {
+            console.error("Error: ", { error });
+            reject(false);
+        }
+    });
+};
 
 const waitSeconds = (seconds) => {
     return new Promise((resolve, reject) => {
@@ -477,43 +478,37 @@ const waitSeconds = (seconds) => {
 };
 
 const checkForTagData = () => {
-    return new Promise(async (resolve, reject) => {
-        // check to see if executable file exists
-        try {
-            if (fs.existsSync('./exiftool/tagData.json')) resolve(true);
-            else resolve(false);
-        } catch (err) {
-            reject("Error checking for tagData.json: ", err);
-        }
-    });
+    // check to see if executable file exists
+    try {
+        if (fs.existsSync('./exiftool/tagData.json')) resolve(true);
+        else return false;
+    } catch (err) {
+        return "Error checking for tagData.json: " + err;
+    }
 }
 
 const loadTagData = () => {
-    return new Promise(async (resolve, reject) => {
-        // on resolve, return the tagData object
-        // load tag file into tagData object
-        try {
-            let tagData = JSON.parse(fs.readFileSync('./exiftool/tagData.json', 'utf8'));
-            resolve(tagData);
-        } catch (err) {
-            reject("Error loading tagData.json: ", err);
-        }
-    });
+
+    // on resolve, return the tagData object
+    // load tag file into tagData object
+    try {
+        let tagData = JSON.parse(fs.readFileSync('./exiftool/tagData.json', 'utf8'));
+        return tagData;
+    } catch (err) {
+        return "Error loading tagData.json: " + err;
+    }
 }
 
 const saveTagData = (tags) => {
-    return new Promise(async (resolve, reject) => {
-        // on resolve, return true
-        // save tagData object to tag file
-        try {
-            fs.writeFileSync('./exiftool/tagData.json', JSON.stringify(tags));
-            console.log("tagData.json saved");
-            resolve(true);
-        } catch (err) {
-            console.log("Error saving tagData.json: ", err);
-            reject("Error saving tagData.json: ", err);
-        }
-    });
+    // save tagData object to tag file
+    try {
+        fs.writeFileSync('./exiftool/tagData.json', JSON.stringify(tags, null, '\t'));
+        // console.log("tagData.json saved");
+        resolve(true);
+    } catch (err) {
+        console.log("Error saving tagData.json: ", err);
+        return "Error saving tagData.json: " + err;
+    }
 }
 
 const scrapeTags = () => {
@@ -637,6 +632,7 @@ const verifyTag = (tag, tagDataObject) => {
                 break;
             }
         }
+        // TODO: finish this
 
         console.log("fileTypeFound: ", fileTypeFound);
         resolve(fileTypeFound);
